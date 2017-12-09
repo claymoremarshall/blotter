@@ -227,10 +227,14 @@
 	if (length(CcyMult)==1 && CcyMult==1){
 	  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
 	} else {
-	  #TmpPeriods.p.ccy <- TmpPeriods
+	  #browser()
+	  TmpPeriods.p.ccy <- TmpPeriods
 	  TmpPeriods.p.ccy[,'Ccy.Mult'] <- CcyMult
 	  
 	  PLRealized <-  Txns[Txns[,"Gross.Txn.Realized.PL"] != 0, "Txn.Avg.Cost"]
+	  
+	  # If only one trade is opened during the backetest, and it is never closed, we won't compute TmpPeriods.p.ccy... but this case isn't useful anyway.
+	  
 	  if (NROW(PLRealized) > 0) {
 	    # Could handle the case of just one trade opened during backtest which was never closed, but not really useful?  (would mean changing above criteria to  at least one transaction, then test for any realised PL)
 	    columns <- c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost', 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
