@@ -237,7 +237,6 @@
 	  
 	  if (NROW(PLRealized) > 0) {
 	    # Could handle the case of just one trade opened during backtest which was never closed, but not really useful?  (would mean changing above criteria to  at least one transaction, then test for any realised PL)
-	    columns <- c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost', 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
 	    
 	    PLRealized <- merge(PLRealized, PLCcytoPortCcy = drop(CcyMult), join = "inner")
 	    # On timestamps where PnL is generated, convert to the portfolio currency:
@@ -256,9 +255,10 @@
 	    TmpPeriods.p.ccy[, "PLCcytoPortCcy"] <- na.locf(TmpPeriods.p.ccy[, "PLCcytoPortCcy"], fromLast = TRUE)
 	    PLcols <- c('Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
 	    TmpPeriods.p.ccy[, PLcols] <- TmpPeriods.p.ccy[, PLcols] * drop(TmpPeriods.p.ccy[, "PLCcytoPortCcy"])
-	    # OPTIONAL: could consider converting Pos.Value and Txn.Value
-	    # Remove this, just here for  reproducible examples of problems for now:
-	    TmpPeriods.p.ccy <<- TmpPeriods.p.ccy
+	    
+	    # Convert the positions to  base currency so that the summary table for the home currency in updatePortf has numbers that are reasonable:
+	    columns <- c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost') # 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+	    TmpPeriods.p.ccy[, columns] <- TmpPeriods.p.ccy[, columns] * drop(CcyMult)
 	    TmpPeriods.p.ccy$PLCcytoPortCcy <- NULL
 	  }
 	}
