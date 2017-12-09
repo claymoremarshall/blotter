@@ -227,26 +227,42 @@
 	if (length(CcyMult)==1 && CcyMult==1){
 	  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
 	} else {
-	  #multiply the correct columns 
-	  columns<-c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost', 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
-	  TmpPeriods[,columns] <- TmpPeriods[,columns] * drop(CcyMult)  # drop dims so recycling will occur
-	  TmpPeriods[,'Ccy.Mult'] <- CcyMult
+	  #TmpPeriods.p.ccy <- TmpPeriods
+	  TmpPeriods.p.ccy[,'Ccy.Mult'] <- CcyMult
 	  
-	  #add change in Pos.Value in base currency
-	  LagValue <- as.numeric(last(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]][,'Pos.Value']))
-	  if(length(LagValue)==0) LagValue <- 0
-	  LagPos.Value <- lag(TmpPeriods[,'Pos.Value'],1)
-	  LagPos.Value[1] <- LagValue
-	  CcyMove <- TmpPeriods[,'Pos.Value'] - LagPos.Value - TmpPeriods[,'Txn.Value'] - TmpPeriods[,'Period.Unrealized.PL'] - TmpPeriods[,'Period.Realized.PL']
-	  columns<-c('Gross.Trading.PL','Net.Trading.PL','Period.Unrealized.PL')
-	  TmpPeriods[,columns] <- TmpPeriods[,columns] + drop(CcyMove)  # drop dims so recycling will occur
-	  
-	  #stick it in posPL.ccy
-	  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]],TmpPeriods)
+	  PLRealized <-  Txns[Txns[,"Gross.Txn.Realized.PL"] != 0, "Txn.Avg.Cost"]
+	  if (NROW(PLRealized) > 0) {
+	    # Could handle the case of just one trade opened during backtest which was never closed, but not really useful?  (would mean changing above criteria to  at least one transaction, then test for any realised PL)
+	    columns <- c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost', 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+	    
+	    PLRealized <- merge(PLRealized, PLCcytoPortCcy = drop(CcyMult), join = "inner")
+	    # On timestamps where PnL is generated, convert to the portfolio currency:
+	    TmpPeriods.p.ccy <- merge(TmpPeriods.p.ccy, PLRealized[, "PLCcytoPortCcy"])
+	    
+	    # OPTIONAL: Insert ability to roll from the end for an open trade.
+	    #if (Txns[1,1] != 0 ) {
+	    openPosIdxs <- which(TmpPeriods.p.ccy[, "Pos.Value"] != 0)
+	    lastOpenPosIdx <- openPosIdxs[length(openPosIdxs)]
+	    nTmp <- NROW(TmpPeriods)
+	    if (lastOpenPosIdx == nTmp) {
+	      TmpPeriods.p.ccy[nTmp, "PLCcytoPortCcy"] <- drop(last(CcyMult))
+	    }
+	    
+	    # summing up PL earned in the portfolio currency depends on rate at which trade was converted:
+	    TmpPeriods.p.ccy[, "PLCcytoPortCcy"] <- na.locf(TmpPeriods.p.ccy[, "PLCcytoPortCcy"], fromLast = TRUE)
+	    PLcols <- c('Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+	    TmpPeriods.p.ccy[, PLcols] <- TmpPeriods.p.ccy[, PLcols] * drop(TmpPeriods.p.ccy[, "PLCcytoPortCcy"])
+	    # OPTIONAL: could consider converting Pos.Value and Txn.Value
+	    # Remove this, just here for  reproducible examples of problems for now:
+	    TmpPeriods.p.ccy <<- TmpPeriods.p.ccy
+	    TmpPeriods.p.ccy$PLCcytoPortCcy <- NULL
+	  }
 	}
-  
-  #portfolio is already an environment, it's been updated in place
-  #assign( paste("portfolio",pname,sep='.'), Portfolio, envir=.blotter )
+	
+	#stick it in posPL.ccy
+	Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], TmpPeriods.p.ccy)
+	#portfolio is already an environment, it's been updated in place
+	#assign( paste("portfolio",pname,sep='.'), Portfolio, envir=.blotter )
 }
 
 .parse_interval <- function(interval) {
