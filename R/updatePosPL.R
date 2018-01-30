@@ -225,46 +225,59 @@
 	}
 	
 	if (length(CcyMult)==1 && CcyMult==1){
-	  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
+	  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- 
+	    Portfolio[['symbols']][[Symbol]][['posPL']]
 	} else {
-	  #browser()
+
 	  TmpPeriods.p.ccy <- TmpPeriods
 	  TmpPeriods.p.ccy[,'Ccy.Mult'] <- CcyMult
 	  
-	  PLRealized <-  Txns[Txns[,"Gross.Txn.Realized.PL"] != 0, "Txn.Avg.Cost"]
-	  
-	  # If only one trade is opened during the backetest, and it is never closed, we won't compute TmpPeriods.p.ccy... but this case isn't useful anyway.
-	  
-	  if (NROW(PLRealized) > 0) {
-	    # Could handle the case of just one trade opened during backtest which was never closed, but not really useful?  (would mean changing above criteria to  at least one transaction, then test for any realised PL)
-	    
-	    PLRealized <- merge(PLRealized, PLCcytoPortCcy = drop(CcyMult), join = "inner")
-	    # On timestamps where PnL is generated, convert to the portfolio currency:
-	    TmpPeriods.p.ccy <- merge(TmpPeriods.p.ccy, PLRealized[, "PLCcytoPortCcy"])
-	    
-	    # OPTIONAL: Insert ability to roll from the end for an open trade.
-	    #if (Txns[1,1] != 0 ) {
-	    openPosIdxs <- which(TmpPeriods.p.ccy[, "Pos.Value"] != 0)
-	    lastOpenPosIdx <- openPosIdxs[length(openPosIdxs)]
-	    nTmp <- NROW(TmpPeriods)
-	    if (lastOpenPosIdx == nTmp) {
-	      TmpPeriods.p.ccy[nTmp, "PLCcytoPortCcy"] <- drop(last(CcyMult))
-	    }
-	    
-	    # summing up PL earned in the portfolio currency depends on rate at which trade was converted:
-	    TmpPeriods.p.ccy[, "PLCcytoPortCcy"] <- na.locf(TmpPeriods.p.ccy[, "PLCcytoPortCcy"], fromLast = TRUE)
-	    PLcols <- c('Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
-	    TmpPeriods.p.ccy[, PLcols] <- TmpPeriods.p.ccy[, PLcols] * drop(TmpPeriods.p.ccy[, "PLCcytoPortCcy"])
-	    
-	    # Convert the positions to  base currency so that the summary table for the home currency in updatePortf has numbers that are reasonable:
-	    columns <- c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost') # 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
-	    TmpPeriods.p.ccy[, columns] <- TmpPeriods.p.ccy[, columns] * drop(CcyMult)
-	    TmpPeriods.p.ccy$PLCcytoPortCcy <- NULL
+    dt.PL.ccy <- data.table(time = index(TmpPeriods.p.ccy), coredata(TmpPeriods.p.ccy))
+    dt.PL.ccy[, id := rleid(sign(Pos.Qty))]
+    # The last row of a position turning from positive to negative has Pos.Qty == 0, but the PL on this bar needs to be accounted for.
+    dt.PL.ccy[, idEnd := as.numeric(diff.xts(id) == 1 & sign(Pos.Qty) == 0)]
+    
+     dt.PL.ccy[idEnd == 1, id := NA]
+     dt.PL.ccy[, id := na.locf(id)]
+     
+     dt.PL.ccy[, cPL := cumsum(Net.Trading.PL), by = id][sign(Pos.Qty) == 0 & idEnd == 0, cPL := 0]
+     dt.PL.ccy[, cPL.p.ccy := cPL * Ccy.Mult]
+	  PLdiff <- function(x) {
+	    if (NROW(x) == 1)
+	      x
+	    else 
+	      x <- c(x[1], diff(x))
 	  }
+	  dt.PL.ccy[, Net.Trading.PL := PLdiff(cPL.p.ccy), by = id]
+	  # Txn.Fees are measured in the instrument currency PL:
+	  dt.PL.ccy[, Gross.Trading.PL := Net.Trading.PL + Txn.Fees * Ccy.Mult]
+	  dt.PL.ccy[, Period.Realized.PL := Period.Realized.PL * Ccy.Mult]
+	  # Compute the balance of PL for the time step in p.ccy:
+	  dt.PL.ccy[, Period.Unrealized.PL := Net.Trading.PL - Period.Realized.PL]
+	  
+	  dt.PL.ccy[, Pos.Value := Pos.Value * Ccy.Mult]
+	  dt.PL.ccy[, Txn.Value := Txn.Value * Ccy.Mult]
+	  dt.PL.ccy[, Pos.Avg.Cost := Pos.Avg.Cost * Ccy.Mult]
+	  TmpPeriods.p.ccy <- xts(dt.PL.ccy[, .SD, .SDcols = colnames(TmpPeriods.p.ccy)], 
+	                          order.by = dt.PL.ccy[, time])
+    # # Remove PL calculation
+    # dt.PL.ccy[, PL := PLdiff(cPL), by = id]
+    # #x2[, delta.PL[1] := PL, by = id]
+    # dt.PL.ccy[, PL.p.ccy := PLdiff(cPL.p.ccy), by = id]
+    # dt.PL.ccy[, Period.Realized.PL.p.ccy := Period.Realized.PL * Ccy.Mult]
+    # # Compute the balance of PL for the time step in p.ccy:
+    # dt.PL.ccy[, Period.Unrealized.PL.p.ccy := PL.p.ccy - Period.Realized.PL.p.ccy]
+    # # Txn.Fees are measured in the instrument currency PL:
+    # dt.PL.ccy[, Txn.Fees.p.ccy := Txn.Fees * Ccy.Mult]
+    # dt.PL.ccy[, Gross.Trading.PL.p.ccy := PL.p.ccy + Txn.Fees.p.ccy]
+    # dt.PL.ccy[, Pos.Value.p.ccy := Pos.Value * Ccy.Mult]
+    # dt.PL.ccy[, Txn.Value.p.ccy := Txn.Value * Ccy.Mult]
+    # dt.PL.ccy[, Pos.Avg.Cost.p.ccy := Pos.Avg.Cost * Ccy.Mult]
+    # TmpPeriods.p.ccy <- xts(dt.PL.ccy[, !"time"], order.by = dt.PL.ccy[, time])
 	}
 	
-	#stick it in posPL.ccy
-	Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], TmpPeriods.p.ccy)
+	Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <-	  
+	  rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], TmpPeriods.p.ccy)
 	#portfolio is already an environment, it's been updated in place
 	#assign( paste("portfolio",pname,sep='.'), Portfolio, envir=.blotter )
 }

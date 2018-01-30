@@ -193,3 +193,5 @@
 #'@importFrom stats complete.cases lag median na.omit quantile qnorm sd start end
 #'@importFrom utils View head tail
 NULL
+
+.datatable.aware=TRUE

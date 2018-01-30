@@ -28,7 +28,8 @@ Depends:
     xts (>= 0.10-0),
     FinancialInstrument(>= 0.6.3),
     PerformanceAnalytics,
-    quantmod
+    quantmod,
+    data.table
 Imports:
     zoo,
     TTR,
