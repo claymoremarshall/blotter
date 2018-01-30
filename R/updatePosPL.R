@@ -254,9 +254,10 @@
 	  dt.PL.ccy[, Period.Realized.PL := Period.Realized.PL * Ccy.Mult]
 	  # Compute the balance of PL for the time step in p.ccy:
 	  dt.PL.ccy[, Period.Unrealized.PL := Net.Trading.PL - Period.Realized.PL]
-	  
+	  # Need to do this otherwise the summary will be directly wrong:
 	  dt.PL.ccy[, Pos.Value := Pos.Value * Ccy.Mult]
 	  dt.PL.ccy[, Txn.Value := Txn.Value * Ccy.Mult]
+	  # optional:
 	  dt.PL.ccy[, Pos.Avg.Cost := Pos.Avg.Cost * Ccy.Mult]
 	  TmpPeriods.p.ccy <- xts(dt.PL.ccy[, .SD, .SDcols = colnames(TmpPeriods.p.ccy)], 
 	                          order.by = dt.PL.ccy[, time])
@@ -274,10 +275,11 @@
     # dt.PL.ccy[, Txn.Value.p.ccy := Txn.Value * Ccy.Mult]
     # dt.PL.ccy[, Pos.Avg.Cost.p.ccy := Pos.Avg.Cost * Ccy.Mult]
     # TmpPeriods.p.ccy <- xts(dt.PL.ccy[, !"time"], order.by = dt.PL.ccy[, time])
+	  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <-	  
+	    rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], TmpPeriods.p.ccy)
 	}
 	
-	Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <-	  
-	  rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], TmpPeriods.p.ccy)
+	
 	#portfolio is already an environment, it's been updated in place
 	#assign( paste("portfolio",pname,sep='.'), Portfolio, envir=.blotter )
 }
