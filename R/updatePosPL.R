@@ -198,6 +198,8 @@
 					  # inversion not found
 						warning("Exchange Rate",FXrate.str," not found for symbol,',Symbol,' using currency multiplier of 1")
 						CcyMult<-1
+					} else {
+					  invert <- TRUE
 					} 
 				} 
 			}		
@@ -228,7 +230,7 @@
 	  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- 
 	    Portfolio[['symbols']][[Symbol]][['posPL']]
 	} else {
-
+    
 	  TmpPeriods.p.ccy <- TmpPeriods
 	  TmpPeriods.p.ccy[,'Ccy.Mult'] <- CcyMult
 	  
@@ -254,7 +256,7 @@
 	  dt.PL.ccy[, Period.Realized.PL := Period.Realized.PL * Ccy.Mult]
 	  # Compute the balance of PL for the time step in p.ccy:
 	  dt.PL.ccy[, Period.Unrealized.PL := Net.Trading.PL - Period.Realized.PL]
-	  # Need to do this otherwise the summary will be directly wrong:
+	  # Need to do this otherwise the summary will be wrong:
 	  dt.PL.ccy[, Pos.Value := Pos.Value * Ccy.Mult]
 	  dt.PL.ccy[, Txn.Value := Txn.Value * Ccy.Mult]
 	  # optional:

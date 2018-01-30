@@ -27,9 +27,21 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
      if(is.null(Symbols)){
        Symbols = ls(Portfolio$symbols)
      }
+     
+     fx.rev.exposure <- NULL
      for(symbol in Symbols){
        tmp_instr<-try(getInstrument(symbol), silent=TRUE)
        .updatePosPL(Portfolio=pname, Symbol=as.character(symbol), Dates=Dates, Prices=Prices, Interval=Interval, ...=...)
+       if ("exchange_rate" %in% class(tmp_instr)) {
+         if (is.null(fx.rev.exposure)) {
+           p.ccy.str<-attr(Portfolio,'currency')
+           fx.rev.exposure <- vector("logical", length = length(Symbols))
+           names(fx.rev.exposure) <- Symbols
+         }
+         
+         if (tmp_instr$counter_currency != p.ccy.str) 
+           fx.rev.exposure[symbol] <- TRUE
+       }
      }
      
      # Calculate and store portfolio summary table
@@ -40,6 +52,7 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
      Attributes = c('Long.Value', 'Short.Value', 'Net.Value', 'Gross.Value', 'Period.Realized.PL', 'Period.Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
      summary = NULL
      tmp.attr=NULL
+     
      for(attribute in Attributes) {
        result=NULL
        switch(attribute,
@@ -50,6 +63,8 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
                 # all these use Pos.Value
                 if(is.null(tmp.attr)){
                   table = .getBySymbol(Portfolio = Portfolio, Attribute = "Pos.Value", Dates = Dates, Symbols = Symbols)
+                  # Adjust exposures for currency positions in relation to home currency:
+                  table[, fx.rev.exposure] <- -1 * table[, fx.rev.exposure]
                   tmp.attr="Pos.Value"
                 }
                 switch(attribute,
