@@ -261,6 +261,7 @@
 	  dt.PL.ccy[, Txn.Value := Txn.Value * Ccy.Mult]
 	  # optional:
 	  dt.PL.ccy[, Pos.Avg.Cost := Pos.Avg.Cost * Ccy.Mult]
+	  dt.PL.ccy[, Txn.Fees := Txn.Fees * Ccy.Mult]
 	  TmpPeriods.p.ccy <- xts(dt.PL.ccy[, .SD, .SDcols = colnames(TmpPeriods.p.ccy)], 
 	                          order.by = dt.PL.ccy[, time])
     # # Remove PL calculation
